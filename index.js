@@ -6,9 +6,14 @@ var port = process.env.PORT || 3000;
 app.get('/', function(req, res){
   res.sendFile(__dirname + '/index.html');
 });
+
+boardWidth=20;
+boardHeight=20;
+gameRunning=false;
+
 function randomSnake(){
   return  {
-    body:[{x:Math.floor(Math.random()*20),y:Math.floor(Math.random()*20)}],
+    body:[{x:Math.floor(Math.random()*boardWidth),y:Math.floor(Math.random()*boardHeight)}],
     length:3,
     direction:[0,1],
     ready:false,
@@ -18,12 +23,21 @@ function randomSnake(){
 var players = {};
 runGame=false;
 io.on('connection', function (socket) {
+
   console.log('a user connected');
   // create a new player and add it to our players object
   if(runGame==false){
     players[socket.id] = randomSnake();
   }
+  if(players[socket.id]==undefined){
+    delete players[socket.id]
+    return;
+  }
 
+
+  boardWidth=Object.entries(players).length*10
+  boardHeight=Math.floor(boardWidth*3/5)
+  io.emit("boardSize",{x:boardWidth,y:boardHeight})
   // send the players object to the new player
   socket.emit('currentPlayers', players);
 
@@ -37,30 +51,47 @@ io.on('connection', function (socket) {
   });
 
   socket.on("ready", function(){
+    if(gameRunning)return;
     console.log(socket.id+" readied")
     players[socket.id].ready=true;
     var allReady=true;
-    for(player of Object.entries(players)){
-      if(player.ready=false)allReady=false;
+    for(player of Object.keys(players)){
+      if(players[player].ready== false)allReady=false;
     }
-    if(allReady){
+    if(allReady && (Object.keys(players)).length>1){
       console.log("starting game")
       runGame=true
       startGame();
     }
   })
   socket.on("turn",function(data){
-    players[socket.id].direction=data
+    // if((players[socket.id].direction!=[0,-1] && data==[0,1]) || (players[socket.id].direction!=[0,1] && data==[0,-1]) || (players[socket.id].direction!=[1,0] && data==[-1, 0]) || (players[socket.id].direction!=[-1,0] && data==[1, 0])){
+
+    // }
+    strData = JSON.stringify(data);
+    strDir = JSON.stringify(players[socket.id].direction);
+    if(strData == "[0,-1]" && strDir=="[0,1]" || strData == "[0,1]" && strDir=="[0,-1]" || strData == "[1,0]" && strDir=="[-1,0]" || strData == "[-1,0]" && strDir=="[1,0]"){
+
+    }
+    else players[socket.id].direction=data;
+
   })
+
+
 });
 function spawnFood(){
-  food={x:Math.floor(Math.random()*20),y:Math.floor(Math.random()*20)}
+  food={x:Math.floor(Math.random()*boardWidth),y:Math.floor(Math.random()*boardHeight)}
 }
 function startGame(){
   spawnFood()
+
+  gameRunning=true;
+
+
   for(player of Object.entries(players)){
     player= randomSnake()
   }
+
 }
 function broadcastGame(){
   io.emit("gameState",{players:players,food:food})
@@ -68,14 +99,15 @@ function broadcastGame(){
 
 
 function run(){
+  if(!gameRunning)return;
   for(player of Object.entries(players)){
     snake=player[1]
 
 
     tail=snake.body[0]
-    newBlock={x:(tail.x+snake.direction[0])%20,y:(tail.y+snake.direction[1])%20}
-    if(newBlock.x<0)newBlock.x=19
-    if(newBlock.y<0)newBlock.y=19
+    newBlock={x:(tail.x+snake.direction[0])%boardWidth,y:(tail.y+snake.direction[1])%boardHeight}
+    if(newBlock.x<0)newBlock.x=boardWidth-1;
+    if(newBlock.y<0)newBlock.y=boardHeight-1;
     if(newBlock.x==food.x && newBlock.y==food.y){
       snake.body.length+=3
       spawnFood()
@@ -86,7 +118,7 @@ function run(){
     snake.body.unshift(newBlock)
     if(snake.body.length>snake.length){
       snake.body.pop()
-      
+
     }
   }
 }
