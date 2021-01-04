@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/Uoalk/Snake#readme",
   "dependencies": {
+    "express": "^4.17.1",
     "npm": "^6.8.0",
     "socket.io": "^2.2.0"
   }
